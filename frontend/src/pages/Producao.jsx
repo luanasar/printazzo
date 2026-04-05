@@ -21,7 +21,7 @@ function Producao() {
   };
 
   function carregarPedidos() {
-    fetch(`${API_URL}pedidos`)
+    fetch(`${API_URL}/pedidos`)
       .then((res) => res.json())
       .then((data) => {
         console.log("Pedidos:", data);
