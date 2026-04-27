@@ -1,5 +1,5 @@
 const express = require("express");
-const sqlite3 = require("sqlite3").verbose();
+const { Pool } = require("pg");
 const cors = require("cors");
 
 const app = express();
@@ -8,7 +8,12 @@ app.use(cors());
 app.use(express.json());
 
 //Banco de dados
-const db = new sqlite3.Database("./database.db");
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  ssl: {
+    rejectUnauthorized: false,
+  },
+});
 
 // Criar tabelas automaticamente
 
@@ -174,7 +179,7 @@ app.get("/modelos", (req, res) => {
 });
 
 //CRIAR PEDIDO
-app.post("/pedidos", (req, res) => {
+app.post("/pedidos", async (req, res) => {
   const {
     cliente_id,
     modelo_id,
@@ -184,41 +189,42 @@ app.post("/pedidos", (req, res) => {
     valor,
     impressora,
   } = req.body;
-  db.run(
-    `INSERT INTO pedidos (cliente_id, modelo_id, quantidade, status, prazo, valor, impressora)
-    VALUES (?, ?, ?, ?, ?, ?, ?)`,
-    [cliente_id, modelo_id, quantidade, status, prazo, valor, impressora],
-    function (err) {
-      if (err) {
-        res.status(500).json(err);
-      } else {
-        res.json({ id: this.lastID });
-      }
-    },
-  );
+  try {
+    await pool.query(
+      `INSERT INTO pedidos
+      (cliente_d, modelo_id, quantidade, status, prazo, valor, impressora)
+      VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+      [cliente_id, modelo_id, quantidade, status, prazo, valor, impressora],
+    );
+
+    res.json({ message: "Pedido criado com sucesso" });
+  } catch (err) {
+    console.error("Erro ao criar pedido:", err);
+    res.status(500).json({ erro: "Erro ao criar pedido" });
+  }
 });
 
 //LISTA PEDIDOS
-app.get("/pedidos", (req, res) => {
-  db.all(
-    `SELECT pedidos.*,
-    clientes.nome as cliente_nome,
-    modelos.nome as modelo_nome
-    FROM pedidos
-    LEFT JOIN clientes ON pedidos.cliente_id = clientes.id
-    LEFT JOIN modelos ON pedidos.modelo_id = modelos.id`,
-    (err, rows) => {
-      if (err) {
-        res.status(500).json(err);
-      } else {
-        res.json(rows);
-      }
-    },
-  );
+app.get("/pedidos", async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT p.*,
+      c.nome AS cliente_nome,
+      M.nome AS modelo_nome
+      FROM pedidos p
+      LEFT JOIN clientes c ON p.cliente_id = c.id
+      LEFT JOIN modelos  ON p.modelo_id = m.id
+      `);
+
+    res.json(result.rows);
+  } catch (err) {
+    console.error("Erro ao buscar pedidos:", err);
+    res.status(500).json({ erro: "Erro ao buscar pedidos" });
+  }
 });
 
 //EDITAR PEDIDO
-app.put("/pedidos/:id", (req, res) => {
+app.put("/pedidos/:id", async (req, res) => {
   const {
     cliente_id,
     modelo_id,
@@ -229,7 +235,46 @@ app.put("/pedidos/:id", (req, res) => {
     impressora,
     entregue,
   } = req.body;
-  const { id } = req.params;
+  try {
+    await pool.query(
+      `UPDATE pedidos SET
+      cliente_id = $1,
+      modelo_id = $2,
+      quantidade = $3,
+      status = $4,
+      prazo = $5,
+      valor = $6,
+      impressora = $7
+      WHERE id = $8`,
+      [cliente_id, modelo_id, quantidade, status, prazo, valor, impressora, id],
+    );
+    res.json({ message: "Pedido atualizado com sucesso" });
+  } catch (err) {
+    console.error("Erro ao atualizar pedido:", err);
+    res.status(500).json({ erro: "Erro ao atualizar pedido" });
+  }
+
+  // Buscar pedido atual
+  db.get(
+    "SELECT status FROM pedidos WHERE id = ?",
+    [pedidoId],
+    (err, pedidoAtual) => {
+      if (err) return res.status(500).json(err);
+
+      const statusAntigo = pedidoAtual?.status;
+
+      //Se mudou para Finalizado
+      if (status === "Finalizado" && statusAntigo !== "Finalizado") {
+        //Atualizar impresos no modelo
+        db.run(
+          `UPDATE modelos
+        SET impressos = COALESCE(impressos, 0) + ?
+        WHERE id = ?`,
+          [quantidade, modelo_id],
+        );
+      }
+    },
+  );
 
   db.run(
     `UPDATE pedidos
