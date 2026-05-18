@@ -1,5 +1,4 @@
 const express = require("express");
-const { Pool } = require("pg");
 const cors = require("cors");
 
 const app = express();
@@ -8,12 +7,11 @@ app.use(cors());
 app.use(express.json());
 
 //Banco de dados
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  ssl: {
-    rejectUnauthorized: false,
-  },
-});
+const sqlite3 = require("sqlite3").verbose();
+const path = require("path");
+
+const dbPath = path.join(__dirname, "database.db");
+const db = new sqlite3.Database(dbPath);
 
 // Criar tabelas automaticamente
 

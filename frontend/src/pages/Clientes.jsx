@@ -146,7 +146,7 @@ function Clientes() {
                   <button onClick={() => iniciarEdicao(cliente)}>Editar</button>
 
                   <button onClick={() => excluirCliente(cliente.id)}>
-                    Exlcuir
+                    Excluir
                   </button>
                 </td>
               </tr>
