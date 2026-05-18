@@ -168,6 +168,7 @@ function Pedidos() {
       />
 
       <select value={status} onChange={(e) => setStatus(e.target.value)}>
+        <option>Aguardando modelagem</option>
         <option>Aguardando orçamento</option>
         <option>Aguardando sinal</option>
         <option>Na fila</option>
